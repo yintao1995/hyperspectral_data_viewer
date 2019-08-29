@@ -37,6 +37,8 @@ class CalculateThread(QThread):
         self.x2 = 0
         self.y2 = 0
         self.data = HyperSpectralData()
+        self.fitting_order = 4
+        self.fitting_range = 25
         self.result = []
 
     def run(self):
@@ -52,7 +54,8 @@ class CalculateThread(QThread):
             self.update_progress_signal.emit(present_progress)
             for x in range(self.x1, self.x2):
                 point_xy = self.data.get_point_xy_data(x, y)
-                temp_resonance_wavelength = show_deep(self.data.spectral_band, point_xy, fit_order=4)[0]
+                temp_resonance_wavelength = show_deep(self.data.spectral_band, point_xy,
+                                                      fit_order=self.fitting_order, fit_range=self.fitting_range)[0]
                 temp.append(temp_resonance_wavelength)
             self.result.append(temp)
         self.finish_calculate_signal.emit()
@@ -113,6 +116,11 @@ class DisplayImageDialog(QDialog):
         self.image_title = ''
         self.band_n = np.zeros(0)
         self.rgb_flag = 0
+        self.fitting_order = 4
+        self.fitting_range = 25
+        self.red = 74
+        self.green = 50
+        self.blue = 21
 
         # child widgets
         self.spectrum_dialog = DisplaySpectrumDialog(parent=self)
@@ -186,9 +194,9 @@ class DisplayImageDialog(QDialog):
         """
         if self.hs_data.data.__len__() == 0:
             return
-        red_band = 74
-        green_band = 50
-        blue_band = 21
+        red_band = self.red
+        green_band = self.green
+        blue_band = self.blue
         band_r = self.hs_data.get_band_n_data(red_band)
         band_g = self.hs_data.get_band_n_data(green_band)
         band_b = self.hs_data.get_band_n_data(blue_band)
@@ -229,7 +237,8 @@ class DisplayImageDialog(QDialog):
                 xy_max = 1.0
             painter.ax.plot(self.hs_data.spectral_band, point_xy)
             # seek deep and fit.
-            result = show_deep(self.hs_data.spectral_band, point_xy, fit_order=4)
+            result = show_deep(self.hs_data.spectral_band, point_xy, fit_order=self.fitting_order,
+                               fit_range=self.fitting_range)
             painter.ax.plot([result[0], result[0]], [0, xy_max], alpha=0.4)
             if not result[0]:
                 painter.ax.text(result[0], 0, "Not Found", alpha=0.6)
@@ -268,6 +277,8 @@ class DisplayImageDialog(QDialog):
         self.calc_distribution_thread.x2 = x1 + w1
         self.calc_distribution_thread.y2 = y1 + h1
         self.calc_distribution_thread.data = self.hs_data
+        self.calc_distribution_thread.fitting_order = self.fitting_order
+        self.calc_distribution_thread.fitting_range = self.fitting_range
         self.calc_distribution_thread.start()
         self.distribution_dialog.progress_bar.setRange(0, h1)
         self.calc_distribution_thread.update_progress_signal.connect(self.update_progress)
@@ -291,6 +302,7 @@ class DisplayImageDialog(QDialog):
         y_end = self.calc_distribution_thread.y1 - 0.5
         canvas_3 = self.distribution_dialog.distribution_canvas
         canvas_3.ax.clear()
+        # print(self.calc_distribution_thread.result, type(self.calc_distribution_thread.result[0][0]))
         pic = canvas_3.ax.imshow(self.calc_distribution_thread.result, cmap="rainbow",
                                  extent=(x_start, x_end, y_start, y_end))
         if self.distribution_dialog.color_bar:

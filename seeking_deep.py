@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-def show_deep(x, y, fit_order=4, section=None):
+def show_deep(x, y, fit_order=4, fit_range=25, section=None):
     """
     Calculate the resonance wavelength of given data (x[], y[]),
     In case of hyper spectrum, array only contains 100-200 numbers(bands).
@@ -36,7 +36,7 @@ def show_deep(x, y, fit_order=4, section=None):
         if not temp:
             return False
 
-        length = 25  # unit : (nm)
+        length = fit_range  # unit : (nm)
         index = cut_list(x1, x1[temp[0]] - length, x1[temp[0]] + length)
         cut_x = x[index[0]: index[1]]
         cut_y = y[index[0]: index[1]]
