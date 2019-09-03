@@ -197,7 +197,7 @@ def calc_thickness(x, npr, n1, n2, n_tio2, n4,d2,N,
 ################################################
 
 
-def my_plot(x,A): #两两相交求交点,A包含两个列表
+def my_plot(x, A):  # 两两相交求交点,A包含两个列表
     for a in A:
         plt.plot(x,a)
     abs_delta = (abs(A[0]-A[1]))
@@ -211,7 +211,7 @@ def my_plot(x,A): #两两相交求交点,A包含两个列表
             temp_x = ("%.2f" % x[i])
             plt.text(x[i], A[0][i]-20, '('+str(temp_x )+' , '+str(temp_y)+')')
 
-            return temp_x,temp_y
+            return temp_x, temp_y
 
 
 def assess_data(A): #计算数组A的均值、标准差、相对标准差作为评估
@@ -272,12 +272,15 @@ def calc_main(theta_list, wavelength_list, d_start, P_list, accuracy):
                 plt.savefig('C:/Users/yintao/Desktop/' + filename + '.png')
             except:
                 plt.savefig(filename+'.png')
-    plt.show()
+    print('---')
+    # plt.show()
+    print('+++')
     print(intersection_x)
     print(intersection_y)
     assess_data(intersection_x)
     assess_data(intersection_y)
-    return intersection_x,intersection_y
+    print('--finish--')
+    return intersection_x, intersection_y
 
 #                         计算每组数据并绘图
 #                        【在这下面修改参数】

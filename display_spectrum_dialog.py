@@ -11,6 +11,7 @@ from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as Navigatio
 from PyQt5.QtWidgets import *
 from matplotlib import *
 import matplotlib
+# import matplotlib.pyplot as plt
 matplotlib.use("Qt5Agg")
 
 

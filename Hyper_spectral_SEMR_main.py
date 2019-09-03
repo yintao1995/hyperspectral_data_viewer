@@ -144,8 +144,6 @@ class MyWindow(QMainWindow):
         self.fitting_para_dialog.fitting_paras_signal.connect(self.set_fitting_paras)
         self.rgb_para_dialog.rgb_paras_signal.connect(self.set_rgb_paras)
 
-        # TODO: 设置各个常参数
-
     def set_menus(self):
         """
         Settings of menu.
@@ -193,6 +191,8 @@ class MyWindow(QMainWindow):
             return
         # Every time new a new DisplayImageDialog object so that multi-windows are supported.
         self.image_dialog = DisplayImageDialog(self)
+        # Parameters about fitting should be more real-time.
+        self.fitting_para_dialog.fitting_paras_signal.connect(self.image_dialog.set_fitting_paras)
         self.image_dialog.hs_data.samples = self.samples
         self.image_dialog.hs_data.lines = self.lines
         self.image_dialog.hs_data.bands = self.bands

@@ -3,6 +3,27 @@ from P_d import *
 from Thickness_P import calc_main,assess_data
 import numpy as np
 from PyQt5.QtWidgets import QApplication, QDialog, QMessageBox
+from PyQt5.QtCore import QThread, pyqtSignal
+import matplotlib.pyplot as plt
+
+
+class CalculatePdThread(QThread):
+    finish_calculate_pd_signal = pyqtSignal()
+
+    def __init__(self):
+        super(CalculatePdThread, self).__init__()
+        self.theta_list = []
+        self.wavelength_list = []
+        self.d_start = 0
+        self.P_list = []
+        self.accuracy = 0
+        self.result = None
+
+    def run(self):
+        # result = [[11], [22]]
+        self.result = calc_main(self.theta_list, self.wavelength_list, self.d_start, self.P_list, self.accuracy)
+        print(self.result[0], self.result[1])
+        self.finish_calculate_pd_signal.emit()
 
 
 class MyPdDialog(QDialog, Ui_Dialog):
@@ -11,6 +32,7 @@ class MyPdDialog(QDialog, Ui_Dialog):
         self.setupUi(self)
         self.pushButton.clicked.connect(self.calc_result)
         self.pushButton_2.clicked.connect(self.assess_result)
+        self.calc_pd_thread = CalculatePdThread()
 
     def calc_result(self):
         try:
@@ -27,12 +49,27 @@ class MyPdDialog(QDialog, Ui_Dialog):
             # numpy.arange产生的小数可能存在类似0.5000000001的情况,因此后续使用过程中需要
             # 控制精度, 用("%.2f"%P)作为文件名传递参数
             accuracy = float(self.lineEdit_6.text())
-            result = calc_main(theta_list, wavelength_list, d_start, P_list, accuracy)
-            self.textEdit.setText(str(result[0]))
-            self.textEdit_2.setText(str(result[1]))
+            self.calc_pd_thread.theta_list = theta_list
+            self.calc_pd_thread.wavelength_list = wavelength_list
+            self.calc_pd_thread.d_start = d_start
+            self.calc_pd_thread.P_list = P_list
+            self.calc_pd_thread.accuracy = accuracy
+            self.pushButton.setText("计算中...")
+            # self.calc_pd_thread.daemon = True
+            self.calc_pd_thread.start()
+            self.calc_pd_thread.finish_calculate_pd_signal.connect(self.set_result)
+            # plt.show()
+            # result = calc_main(theta_list, wavelength_list, d_start, P_list, accuracy)
         except:
             QMessageBox.warning(self, 'Warning', 'Input Format Wrong')
             pass
+
+    def set_result(self):
+        self.calc_pd_thread.finish_calculate_pd_signal.disconnect(self.set_result)
+        if self.calc_pd_thread.result:
+            self.textEdit.setText(str(self.calc_pd_thread.result[1]))
+            self.textEdit_2.setText(str(self.calc_pd_thread.result[0]))
+            self.pushButton.setText("计算")
 
     def assess_result(self):
         try:

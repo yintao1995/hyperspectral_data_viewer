@@ -20,6 +20,7 @@ import time
 import numpy as np
 import cv2
 import matplotlib
+import matplotlib.pyplot as plt
 matplotlib.use("Qt5Agg")
 
 
@@ -40,6 +41,7 @@ class CalculateThread(QThread):
         self.fitting_order = 4
         self.fitting_range = 25
         self.result = []
+        self.average = 0
 
     def run(self):
         """
@@ -47,6 +49,7 @@ class CalculateThread(QThread):
         After processing, send <finish_calculate_signal> to display the result.
         """
         self.result = []
+        total_sum = 0
         present_progress = 0
         for y in range(self.y1, self.y2):
             temp = []
@@ -57,7 +60,9 @@ class CalculateThread(QThread):
                 temp_resonance_wavelength = show_deep(self.data.spectral_band, point_xy,
                                                       fit_order=self.fitting_order, fit_range=self.fitting_range)[0]
                 temp.append(temp_resonance_wavelength)
+            total_sum += sum(temp)
             self.result.append(temp)
+        self.average = total_sum/(self.y2-self.y1)/(self.x2-self.x1)
         self.finish_calculate_signal.emit()
         
 
@@ -124,6 +129,7 @@ class DisplayImageDialog(QDialog):
 
         # child widgets
         self.spectrum_dialog = DisplaySpectrumDialog(parent=self)
+        self.calc_thickness_dialog = MyPdDialog(parent=self)
         self.distribution_dialog = DisplayWavelengthDistributionDialog(parent=self)
 
         # other threads
@@ -145,6 +151,13 @@ class DisplayImageDialog(QDialog):
         self.distribution_dialog.selection_signal.connect(self.update_selection_rectangle)
         self.distribution_dialog.hide_widget_signal.connect(self.clear_selection_rectangle)
         self.distribution_dialog.select_btn.clicked.connect(self.view_selection_wavelength_distribution)
+
+    def set_fitting_paras(self, fitting_order, fitting_range):
+        """
+        Change fitting parameters real-time.
+        """
+        self.fitting_order = fitting_order
+        self.fitting_range = fitting_range
 
     def load_file(self, file_name):
         """
@@ -209,9 +222,10 @@ class DisplayImageDialog(QDialog):
         """
         Call out the "calculate thickness and porosity" widget.
         """
-        calc_thickness_dialog = MyPdDialog(self)
-        calc_thickness_dialog.setAttribute(Qt.WA_DeleteOnClose)
-        calc_thickness_dialog.show()
+
+        # calc_thickness_dialog = MyPdDialog(self)
+        # calc_thickness_dialog.setAttribute(Qt.WA_DeleteOnClose)
+        self.calc_thickness_dialog.show()
 
     def open_spectrum_dialog(self, event):
         """
@@ -302,9 +316,10 @@ class DisplayImageDialog(QDialog):
         y_end = self.calc_distribution_thread.y1 - 0.5
         canvas_3 = self.distribution_dialog.distribution_canvas
         canvas_3.ax.clear()
-        # print(self.calc_distribution_thread.result, type(self.calc_distribution_thread.result[0][0]))
         pic = canvas_3.ax.imshow(self.calc_distribution_thread.result, cmap="rainbow",
                                  extent=(x_start, x_end, y_start, y_end))
+        canvas_3.fig.suptitle("Average: "+"%.2f" % self.calc_distribution_thread.average)
+        # print(self.calc_distribution_thread.average)
         if self.distribution_dialog.color_bar:
             # Remove color bar created before
             self.distribution_dialog.color_bar.remove()
@@ -337,8 +352,11 @@ class DisplayImageDialog(QDialog):
         Draw selection event.
         """
         self.image_canvas.press_flag = True
-        self.image_canvas.x1 = int(round(event.xdata))
-        self.image_canvas.y1 = int(round(event.ydata))
+        try:
+            self.image_canvas.x1 = int(round(event.xdata))
+            self.image_canvas.y1 = int(round(event.ydata))
+        except TypeError:
+            pass
 
     def my_release_event(self, event):
         """
