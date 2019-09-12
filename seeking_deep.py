@@ -13,6 +13,7 @@ def show_deep(x, y, fit_order=4, fit_range=25, section=None):
     :param x:  List[num]
     :param y:  List[num]
     :param fit_order:  int
+    :param fit_range:  int
     :param section: Tuple -- (r1, r2)
     :return: (num0, num1, List2, List3)
     --------

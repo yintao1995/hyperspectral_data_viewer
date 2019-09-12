@@ -5,9 +5,8 @@ import xlrd
 import numpy as np
 import matplotlib.pyplot as plt
 from sympy import *
-
 import json
-np.seterr(divide='ignore',invalid='ignore')
+np.seterr(divide='ignore', invalid='ignore')
 
 
 def find_positive(a):  # 找多个解中的正数,此题中仅有一个正数
@@ -25,7 +24,7 @@ def find_positive(a):  # 找多个解中的正数,此题中仅有一个正数
 def calc_n(P, na, nb, N):  # 传递采样率N是为了分辨json文件名
     if len(na) != len(nb):
         print("Wrong input~")
-    fb = P
+    fb=P
     # 将原bruggman方程变形，关于n 只有n^2和n^4项，因此直接用二次方程解公式，只要正实解
     # x1=n^2
     a1 = 2
@@ -35,156 +34,65 @@ def calc_n(P, na, nb, N):  # 传递采样率N是为了分辨json文件名
     x = list(np.sqrt(x1))
 
     with open('ERI/'+("%.2f" % P)+'_'+str(N)+'.json', 'w') as file_obj:
-        json.dump(x, file_obj)
+        json.dump(x,file_obj)
     return x
-
-
-def effective_n(porosity, na, nb):
-    if len(na) != len(nb):
-        print("Wrong input~")
-    fb = porosity
-    # x1=n^2
-    a1 = 2
-    b1 = (3 * fb - 2) * na * na + (1 - 3 * fb) * nb * nb
-    c1 = -na * na * nb * nb
-    x1 = (-b1 + np.sqrt(b1 * b1 - 4 * a1 * c1)) / (2 * a1)
-    return np.sqrt(x1)
-
-
-def reflectivity_to_reflected_light(reflectivity: list):
-    """
-    模拟一个入射光，通过反射率求反射光
-    """
-    x_range = np.arange(0.0, 500.1, 0.1)
-    incident_light = np.sin(np.pi / 500 * x_range)
-    return incident_light*reflectivity
 
 
 # 对多层介质模型，利用菲涅尔公式进行计算
 # theta是入射到棱镜直角边的入射角，需转换成 棱镜-玻璃的入射角
 # 然后才是四层模型， 玻璃-金膜-多孔TiO2-介质层（空气）
 # 返回计算所得共振波长
-def draw_spectrum_3_layers(wavelength, n_prism, n_glass, n_metal, n_detection, angle_out, d_metal, draw_mode=True):
+def draw_spectrum(wavelength, n_prism, n_glass, n_gold, n_detection, angle_out, d_gold):
     """
-    三层结构：1棱镜(玻璃)-2金属膜-3待测物质
-    draw_mode: 默认为True, 此时是绘图模式; False时只返回共振波长.
+    棱镜-金膜-待测物质
     """
-    # 棱镜到玻璃计入折射, 此处angle_out为入射光入射在棱镜直角边上的角度, 人为规定有正有负, 其定义如下:
-    # 入射光偏向于棱镜直角, 为正; 否则为负.
-    angle_in = np.arcsin(n_prism / n_glass * np.sin(np.pi / 4 +
-                                                    np.arcsin(np.sin((angle_out * np.pi / 180)) / n_prism)))
+
+    angle_in = np.arcsin(n_prism / n_glass * np.sin(np.pi / 4 + np.arcsin(np.sin((abs(angle_out) * np.pi / 180)) / n_prism)))  # 棱镜到玻璃计入折射
+    # #np.pi / 4 + np.arcsin(np.sin((angle_out * np.pi / 180)) / n_prism)
     k0 = 2*np.pi / wavelength
-    beta_square = (k0 * n_glass * np.sin(abs(angle_in)))**2
+    beta1 = k0 * n_glass * np.sin(abs(angle_in))
+    beta_square = beta1**2
     k0_square = k0**2
+    # k1 = (0j+beta_square - k0_square*n_prism*n_prism)**0.5
+    # k2 = (0j+beta_square - k0_square*n_gold*n_gold)**0.5
+    # k3 = (0j+beta_square - k0_square*n_detection*n_detection)**0.5
+    # r12 = (n_prism*n_prism*k2 - n_gold*n_gold*k1) / (n_prism*n_prism*k2 + n_gold*n_gold*k1)
+    # r23 = (n_gold*n_gold*k3 - n_detection*n_detection*k2) / (n_gold*n_gold*k3 + n_detection*n_detection*k2)
+    # R = (abs((r12+r23*np.exp(-2*k2*d_gold))/(1+r12*r23*np.exp(-2*k2*d_gold))))**2
     e_glass = n_glass**2
-    e_metal = n_metal ** 2
+    e_gold = n_gold**2
     e_detection = n_detection**2
-    # np.sqrt不能处理纯负数的情况, 因此可以手动全部加上0j
-    alpha_glass = 0 - np.sqrt(beta_square - k0_square*e_glass+0j)   # 负数的平方根，取虚部为负的解
-    alpha_metal = np.sqrt(beta_square - k0_square*e_metal+0j)
-    alpha_detection = np.sqrt(beta_square - k0_square*e_detection+0j)
-    r12 = (e_glass*alpha_metal - e_metal*alpha_glass) / (e_glass*alpha_metal + e_metal*alpha_glass)
-    r23 = (e_metal*alpha_detection - e_detection*alpha_metal) / (e_metal*alpha_detection + e_detection*alpha_metal)
-    r123 = (r12 + r23 * np.exp(-2 * alpha_metal * d_metal)) / (1 + r12 * r23 * np.exp(-2 * alpha_metal * d_metal))
-    # r_tm = reflectivity_to_reflected_light(abs(r123) ** 2)
-    r_tm = abs(r123)**2
-    resonance_wavelength_temp = 0
-    for i in range(len(wavelength)-10, 10, -1):  # 从后往前求解共振deep,不然当有两个deep的时候会出错
-        if r_tm[i] < 0.6 and r_tm[i] < r_tm[i - 1] and r_tm[i] < r_tm[i + 1]:
-            resonance_wavelength_temp = round(wavelength[i], 2)
-            print(angle_out, '° :', round(wavelength[i], 2), 'nm  ', round(r_tm[i], 2))
-            break
-    if draw_mode:
-        plt.plot(wavelength, r_tm)
-        plt.xlim(400, 900)
-        plt.ylim(-0.1, 1.1)
-        plt.text(resonance_wavelength_temp, 0, str(resonance_wavelength_temp))
-        plt.show()
-    else:
-        return resonance_wavelength_temp
+    alpha_prism = 0 - np.sqrt(beta_square - k0_square*e_glass+0j)   # 负数的平方根，取虚部为负的解
+    alpha_gold = np.sqrt(beta_square - k0_square*e_gold)
+    alpha_detection = np.sqrt(beta_square - k0_square*e_detection)
+    r12 = (e_glass*alpha_gold - e_gold*alpha_prism) / (e_glass*alpha_gold + e_gold*alpha_prism)
+    r23 = (e_gold*alpha_detection - e_detection*alpha_gold) / (e_gold*alpha_detection + e_detection*alpha_gold)
+    r123 = (r12+r23*np.exp(-2*alpha_gold*d_gold)) / (1 + r12*r23*np.exp(-2*alpha_gold*d_gold))
+    R_TM = abs(r123) ** 2
 
+    # r_detection_gold = (e_detection*alpha_gold - e_gold*alpha_detection) / (e_detection*alpha_gold + e_gold*alpha_detection)
+    # r_gold_prism = (e_gold*alpha_prism - e_prism*alpha_gold) / (e_gold*alpha_prism + e_prism*alpha_gold)
+    # r_all = (r_gold_prism + r_detection_gold*np.exp(-2*alpha_gold)*d_gold) / (1 + r_gold_prism*r_detection_gold*np.exp(-2*alpha_gold)*d_gold)
+    # R_TM = abs(r_all) ** 2
 
-def draw_spectrum_4_layers(wavelength, n_prism, n_glass, n_metal, n_enhance,
-                           n_detection, angle_out, d_metal, d_enhance, draw_mode=True):
-    """
-    四层结构：1棱镜(玻璃)-2金属膜-3修饰增强层-4待测物质
-    draw_mode: 默认为True, 此时是绘图模式; False时只返回共振波长.
-    """
-    angle_in = np.arcsin(
-        n_prism / n_glass * np.sin(np.pi / 4 + np.arcsin(np.sin((angle_out * np.pi / 180)) / n_prism)))
-    k0 = 2*np.pi / wavelength
-    k0_square = k0 ** 2
-    beta_square = (k0 * n_glass * np.sin(abs(angle_in))) ** 2
-    e_glass = n_glass**2
-    e_metal = n_metal**2
-    e_enhance = n_enhance**2
-    e_detection = n_detection**2
-    alpha_glass = 0 - np.sqrt(beta_square - k0_square*e_glass+0j)
-    alpha_metal = np.sqrt(beta_square - k0_square*e_metal+0j)
-    alpha_enhance = np.sqrt(beta_square - k0_square*e_enhance+0j)
-    alpha_detection = np.sqrt(beta_square - k0_square*e_detection+0j)
-    r12 = (e_glass*alpha_metal - e_metal*alpha_glass) / (e_glass*alpha_metal + e_metal*alpha_glass)
-    r23 = (e_metal*alpha_enhance - e_enhance*alpha_metal) / (e_metal*alpha_enhance + e_enhance*alpha_metal)
-    r34 = (e_enhance*alpha_detection - e_detection*alpha_enhance) / (e_enhance*alpha_detection + e_detection*alpha_enhance)
-    r234 = (r23 + r34*np.exp(-2*alpha_enhance*d_enhance)) / (1+r23*r34*np.exp(-2*alpha_enhance*d_enhance))
-    r1234 = (r12 + r234*np.exp(-2*alpha_metal*d_metal)) / (1+r12*r234*np.exp(-2*alpha_metal*d_metal))
-    # r_tm = reflectivity_to_reflected_light(abs(r1234)**2)
-    r_tm = abs(r1234)**2
-
-    resonance_wavelength_temp = 0
-    for i in range(len(wavelength) - 10, 10, -1):
-        if r_tm[i] < 0.6 and r_tm[i] < r_tm[i - 1] and r_tm[i] < r_tm[i + 1]:
-            resonance_wavelength_temp = round(wavelength[i], 2)
-            print(angle_out, '° :', round(wavelength[i], 2), 'nm  ', round(r_tm[i], 2))
-            break
-    if draw_mode:
-        plt.plot(wavelength, r_tm)
-        plt.xlim(400, 900)
-        plt.ylim(-0.1, 1.1)
-        plt.text(resonance_wavelength_temp, 0, str(resonance_wavelength_temp))
-        plt.show()
-    else:
-        return resonance_wavelength_temp
-
-
-def draw_spectrum(x, npr, n1, n2, n3, n4, d2, theta, d3):
-    label = []
-    A = np.arcsin(npr / n1 * np.sin(np.pi / 4 + np.arcsin(np.sin((theta * np.pi / 180)) / npr)))  # 棱镜到玻璃计入折射
-    # A=np.pi/4+np.arcsin(np.sin((   (theta)*np.pi/180))/npr ) # 棱镜到玻璃不计入折射
-    k1 = 2 * np.pi / x * (n1 ** 2 - n1 ** 2 * np.sin(A) ** 2) ** 0.5
-    k2 = 2 * np.pi / x * (n2 ** 2 - n1 ** 2 * np.sin(A) ** 2) ** 0.5
-    k3 = 2 * np.pi / x * (n3 ** 2 - n1 ** 2 * np.sin(A) ** 2) ** 0.5
-    temps = (n4 ** 2 - n1 ** 2 * np.sin(A) ** 2)
-    k4 = 2 * np.pi / x * np.array([(round(float(temp), 6)) ** 0.5 for temp in temps])
-
-    r12 = ((n2 ** 2) * k1 - (n1 ** 2) * k2) / ((n2 ** 2) * k1 + (n1 ** 2) * k2)
-    r23 = ((n3 ** 2) * k2 - (n2 ** 2) * k3) / ((n3 ** 2) * k2 + (n2 ** 2) * k3)
-    r34 = ((n4 ** 2) * k3 - (n3 ** 2) * k4) / ((n4 ** 2) * k3 + (n3 ** 2) * k4)
-    # r34 = np.zeros(5001)
-    r234 = (r23 + r34 * np.exp(1j * 2 * k3 * d3)) / (1 + r23 * r34 * np.exp(1j * 2 * k3 * d3))
-    # np.exp()可以对数组直接进行运算，但是要注意前面用sympy求解的结果需要转换成普通float
-    r1234 = (r12 + r234 * np.exp(1j * 2 * k2 * d2)) / (1 + r12 * r234 * np.exp(1j * 2 * k2 * d2))
-
-    RTM = abs(r1234) ** 2
-
-    plt.plot(x, RTM)
-    # plt.xlim(400, 900)
-    # plt.ylim(-0.1,1.1)
+    plt.plot(wavelength, R_TM)
+    plt.xlim(400, 900)
+    plt.ylim(-0.1,1.1)
 
     wavelength_temp = 0
-    for i in range(len(x)-10, 10, -1):  # 从后往前求解共振deep,不然当有两个deep的时候会出错
-        if RTM[i] < RTM[i - 1] and RTM[i] < RTM[i + 1]:
-            wavelength_temp = round(x[i], 2)
-            print(theta, '° :', round(x[i], 2), 'nm  ', round(RTM[i], 2))
+    for i in range(len(wavelength)-10, 10, -1):  # 从后往前求解共振deep,不然当有两个deep的时候会出错
+        if R_TM[i] < R_TM[i - 1] and R_TM[i] < R_TM[i + 1]:
+            wavelength_temp = round(wavelength[i], 2)
+            print(angle_out, '° :', round(wavelength[i], 2), 'nm  ', round(R_TM[i], 2))
             break
-
-    label.append('TM ' + str(theta) + '°')
+    label = []
+    label.append('TM ' + str(angle_out) + '°')
     plt.legend(label, loc=4, ncol=1)
-    # plt.axvline(wavelength_temp)
+    # # plt.axvline(wavelength_temp)
     plt.text(wavelength_temp,0,str(wavelength_temp))
 
-    # plt.show()
-    return wavelength_temp
+    plt.show()
+    # return wavelength_temp
 
 
 # 读取excel的数据，包括波长、各层随波长的折射率等
@@ -196,7 +104,7 @@ def read_excel(filepath, N):
     begin = 30  # 400-900nm
     end = -1
     x = np.array(table.col_values(0)[begin:end])  # 波长
-    d2 = 40  # 金膜厚度
+    d2 = 50  # 金膜厚度
     # d3 = 260  #多孔TiO2层厚度
     npr = np.array(table.col_values(1)[begin:end])  # 棱镜折射率
     n1 = np.array(table.col_values(2)[begin: end])  # 玻璃折射率
@@ -230,13 +138,13 @@ def calc_thickness(x, npr, n1, n2, n_tio2, n4,d2,N,
     P_list = P_list
     d3_list = []
 
-    temp = d_start
+    temp = d_start #
     for i in range(len(P_list)):
         # TiO2层等效折射率n3由calc_n(P,n_tio2,n4)计算而来
-        P = round(P_list[i], 2)
+        P = round(P_list[i],2)
         print('-------------------------------------------------------------  P= ', P)
         try:  # 对每一个孔隙率P，先尝试读取json文件，如果没有就重新计算等效折射率n数组
-            filename = 'ERI/'+("%.2f" % P) + '_' + str(N) + '.json'
+            filename = 'ERI/'+("%.2f"%P) + '_' + str(N) + '.json'
             print(filename)
             with open(filename, 'r') as file_obj:
                 n3 = np.array(json.load(file_obj))
@@ -336,7 +244,7 @@ def calc_main(theta_list, wavelength_list, d_start, P_list, accuracy):
     fitted_p_list = np.arange(P_list[0],P_list[-1], 0.001)
     fitted_t_list = []
     for i in range(len(theta_list)):    # 对每一个角度
-        angle.append(str(theta_list[i]) + '°')
+        angle.append( str(theta_list[i]) + '°' )
 
         t_temp = calc_thickness(datas[0],datas[1],datas[2],datas[3],datas[4],datas[5],datas[6],N,
                          P_list, d_start, accuracy, theta_list[i], wavelength_list[i])
@@ -345,7 +253,7 @@ def calc_main(theta_list, wavelength_list, d_start, P_list, accuracy):
         p_temp = np.poly1d(z_temp)
         fitted_t_list.append(p_temp(fitted_p_list))  # 拟合成更加紧密的曲线
 
-    print('=======================================')  # 显示
+    print('=======================================') # 显示
     for i in range(len(t_list)):
         print(angle[i], t_list[i])
     print('=======================================')
@@ -402,18 +310,24 @@ def calc_main(theta_list, wavelength_list, d_start, P_list, accuracy):
 
 
 if __name__ == '__main__':
-    x = np.load("RI\\wavelength.npy")
-    d2 = 50
-    d3 = 150
+    wavelength = np.load("RI\\wavelength.npy")
+    # print(x, len(x))
     npr = np.load("RI\\prism.npy")
-    n1 = np.load("RI\\glass.npy")
-    n2 = np.load("RI\\Au_n.npy") + 1j*np.load("RI\\Au_k.npy")
-    n3 = np.load("RI\\tio2.npy")
-    # n4 = np.load("RI\\air.npy")
-    # n4 = np.load("RI\\water.npy")
-    n4 = np.full(5001, 1.33)
-    theta = 10
-    # draw_spectrum(x, npr, n1, n2, n3, n4, d2, theta, d3)
-    # draw_spectrum_3_layers(x, npr, n1, n2, n4, theta, d2)
-    res = draw_spectrum_4_layers(x, npr, n1, n2, effective_n(0.3, n3, n4), n4, theta, d2, d3, draw_mode=True)
+    n_glass = np.load("RI\\glass.npy")
+
+    n_gold = np.load("RI\\Au_n.npy") + 1j*np.load("RI\\Au_k.npy")
+
+    n_detection = np.load("RI\\water.npy")
+    # n_detection = np.full(5001, 1.35)
+
+    d_gold = 50
+    angle = 15
+    print(wavelength)
+    print(npr)
+    print(n_gold)
+    print(n_detection)
+    print(angle)
+    print(d_gold)
+    draw_spectrum(wavelength, npr, n_glass, n_gold, n_detection, angle, d_gold)
+
 

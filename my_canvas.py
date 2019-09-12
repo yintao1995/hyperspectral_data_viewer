@@ -68,3 +68,4 @@ class MyCanvas(FigureCanvas):
         if self.ax.lines:
             self.ax.lines.clear()
             self.draw()
+
