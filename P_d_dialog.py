@@ -85,16 +85,16 @@ class SettingSenseLayer(QDialog, Ui_Dialog_layer):
             QMessageBox.warning(self, "error", "error")
             pass
         else:
-            print("θ：", self.theta, type(self.theta))
-            print("λ：", self.wavelength, type(self.wavelength))
-            print("棱镜：", self.n0, type(self.n0))
-            print("玻璃：", self.n1, type(self.n1))
-            print("金属膜：", self.n2, type(self.n2))
-            print("金属膜厚度：", self.d2, type(self.d2))
-            print("增强层：", self.n3, type(self.n3))
-            print("增强层厚度：", self.d3, type(self.d3))
-            print("增强层孔隙率：", self.porosity, type(self.porosity))
-            print("介质层：", self.n4, type(self.n4))
+            # print("θ：", self.theta, type(self.theta))
+            # print("λ：", self.wavelength, type(self.wavelength))
+            # print("棱镜：", self.n0, type(self.n0))
+            # print("玻璃：", self.n1, type(self.n1))
+            # print("金属膜：", self.n2, type(self.n2))
+            # print("金属膜厚度：", self.d2, type(self.d2))
+            # print("增强层：", self.n3, type(self.n3))
+            # print("增强层厚度：", self.d3, type(self.d3))
+            # print("增强层孔隙率：", self.porosity, type(self.porosity))
+            # print("介质层：", self.n4, type(self.n4))
             if self.d3 == 0:    # 此时修饰层选择的“无”，整体为三层结构
                 draw_spectrum_3_layers(self.wavelength, self.n0, self.n1, self.n2, self.n4, self.theta, self.d2)
             else:
@@ -130,6 +130,7 @@ class MyPdDialog(QDialog, Ui_Dialog_pd):
         self.pushButton.clicked.connect(self.calc_result)
         self.pushButton_2.clicked.connect(self.assess_result)
         self.calc_pd_thread = CalculatePdThread()
+        # self.sense_model = SettingSenseLayer()
 
     def calc_result(self):
         try:

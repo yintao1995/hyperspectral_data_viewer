@@ -43,6 +43,7 @@ class DisplayWavelengthDistributionDialog(QDialog):
         self.spin_box_w1.setRange(0, 1200)
         self.spin_box_h1.setRange(0, 1200)
         self.select_btn = QPushButton("Select")
+        self.save_data_btn = QPushButton("SaveData")
         self.progress_bar = QProgressBar()
         self.distribution_canvas = MyCanvas()
         self.distribution_nav_btn = NavigationToolbar(self.distribution_canvas, parent=None)
@@ -55,6 +56,7 @@ class DisplayWavelengthDistributionDialog(QDialog):
         self.selection_layout.addWidget(self.spin_box_w1, stretch=1)
         self.selection_layout.addWidget(self.spin_box_h1, stretch=1)
         self.selection_layout.addWidget(self.select_btn, stretch=1)
+        self.selection_layout.addWidget(self.save_data_btn, stretch=1)
         self.selection_layout.addStretch(1)
 
         self.progress_bar_layout = QHBoxLayout()

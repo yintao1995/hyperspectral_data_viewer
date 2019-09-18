@@ -13,6 +13,7 @@ from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as Navigatio
 from hyper_spectral_data import HyperSpectralData
 from seeking_deep import show_deep
 from P_d_dialog import MyPdDialog
+from thickness_2D_distribution_dialog import CalculateThicknessDistributionDialog
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from matplotlib import *
@@ -129,11 +130,14 @@ class DisplayImageDialog(QDialog):
 
         # child widgets
         self.spectrum_dialog = DisplaySpectrumDialog(parent=self)
-        self.calc_thickness_dialog = MyPdDialog(parent=self)
+        # self.calc_thickness_dialog = MyPdDialog(parent=self)
+        self.calc_thickness_dialog = CalculateThicknessDistributionDialog(parent=self)
         self.distribution_dialog = DisplayWavelengthDistributionDialog(parent=self)
 
         # other threads
         self.calc_distribution_thread = CalculateThread()
+        self.calc_distribution_thread.update_progress_signal.connect(self.update_progress)
+        self.calc_distribution_thread.finish_calculate_signal.connect(self.finish_calculation)
 
         # signals and slots
         self.band_combo_box.currentIndexChanged.connect(
@@ -151,6 +155,7 @@ class DisplayImageDialog(QDialog):
         self.distribution_dialog.selection_signal.connect(self.update_selection_rectangle)
         self.distribution_dialog.hide_widget_signal.connect(self.clear_selection_rectangle)
         self.distribution_dialog.select_btn.clicked.connect(self.view_selection_wavelength_distribution)
+        self.distribution_dialog.save_data_btn.clicked.connect(self.save_data_as_file)
 
     def set_fitting_paras(self, fitting_order, fitting_range):
         """
@@ -222,7 +227,6 @@ class DisplayImageDialog(QDialog):
         """
         Call out the "calculate thickness and porosity" widget.
         """
-
         # calc_thickness_dialog = MyPdDialog(self)
         # calc_thickness_dialog.setAttribute(Qt.WA_DeleteOnClose)
         self.calc_thickness_dialog.show()
@@ -286,17 +290,18 @@ class DisplayImageDialog(QDialog):
         y1 = self.distribution_dialog.spin_box_y1.value()
         w1 = self.distribution_dialog.spin_box_w1.value()
         h1 = self.distribution_dialog.spin_box_h1.value()
-        self.calc_distribution_thread.x1 = x1
-        self.calc_distribution_thread.y1 = y1
-        self.calc_distribution_thread.x2 = x1 + w1
-        self.calc_distribution_thread.y2 = y1 + h1
-        self.calc_distribution_thread.data = self.hs_data
-        self.calc_distribution_thread.fitting_order = self.fitting_order
-        self.calc_distribution_thread.fitting_range = self.fitting_range
-        self.calc_distribution_thread.start()
-        self.distribution_dialog.progress_bar.setRange(0, h1)
-        self.calc_distribution_thread.update_progress_signal.connect(self.update_progress)
-        self.calc_distribution_thread.finish_calculate_signal.connect(self.finish_calculation)
+        if w1 > 0 and h1 > 0:
+            self.calc_distribution_thread.x1 = x1
+            self.calc_distribution_thread.y1 = y1
+            self.calc_distribution_thread.x2 = x1 + w1
+            self.calc_distribution_thread.y2 = y1 + h1
+            self.calc_distribution_thread.data = self.hs_data
+            self.calc_distribution_thread.fitting_order = self.fitting_order
+            self.calc_distribution_thread.fitting_range = self.fitting_range
+            self.calc_distribution_thread.start()
+            self.distribution_dialog.progress_bar.setRange(0, h1)
+        else:
+            QMessageBox.critical(self.distribution_dialog, "Error", "No selection detected!")
 
     def update_progress(self, present_progress):
         """
@@ -308,7 +313,7 @@ class DisplayImageDialog(QDialog):
         """
         After finishing calculation, display the result on canvas.
         """
-        self.calc_distribution_thread.finish_calculate_signal.disconnect(self.finish_calculation)
+        # self.calc_distribution_thread.finish_calculate_signal.disconnect(self.finish_calculation)
         # This is important. Have to disconnect connection since this connection is in function.
         x_start = self.calc_distribution_thread.x1 - 0.5
         x_end = self.calc_distribution_thread.x2 - 0.5
@@ -326,6 +331,15 @@ class DisplayImageDialog(QDialog):
         self.distribution_dialog.color_bar = canvas_3.fig.colorbar(mappable=pic)
         self.distribution_dialog.color_bar.set_label("$\\lambda$/nm")
         canvas_3.draw()
+
+    def save_data_as_file(self):
+        data = self.calc_distribution_thread.result
+        if data:
+            filename = QFileDialog.getSaveFileName(self, 'Save File', '', "npy(*.npy)",
+                                                None, QFileDialog.DontUseNativeDialog)[0]
+            np.save(filename+".npy", np.array(data))
+        else:
+            QMessageBox.warning(self.distribution_dialog, "Warning", "No data to be saved.")
 
     def clear_selection_rectangle(self):
         """

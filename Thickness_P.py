@@ -92,7 +92,7 @@ def draw_spectrum_3_layers(wavelength, n_prism, n_glass, n_metal, n_detection, a
     for i in range(len(wavelength)-10, 10, -1):  # 从后往前求解共振deep,不然当有两个deep的时候会出错
         if r_tm[i] < 0.6 and r_tm[i] < r_tm[i - 1] and r_tm[i] < r_tm[i + 1]:
             resonance_wavelength_temp = round(wavelength[i], 2)
-            print(angle_out, '° :', round(wavelength[i], 2), 'nm  ', round(r_tm[i], 2))
+            # print(angle_out, '° :', round(wavelength[i], 2), 'nm  ', round(r_tm[i], 2))
             break
     if draw_mode:
         plt.plot(wavelength, r_tm)
@@ -107,7 +107,7 @@ def draw_spectrum_3_layers(wavelength, n_prism, n_glass, n_metal, n_detection, a
 def draw_spectrum_4_layers(wavelength, n_prism, n_glass, n_metal, n_enhance,
                            n_detection, angle_out, d_metal, d_enhance, draw_mode=True):
     """
-    四层结构：1棱镜(玻璃)-2金属膜-3修饰增强层-4待测物质
+    四层结构：1棱镜(玻璃)-2金属膜-3修饰增强层-4待测物. 比三层模型多了两个参数: n_enhance,d_enhance
     draw_mode: 默认为True, 此时是绘图模式; False时只返回共振波长.
     """
     angle_in = np.arcsin(
@@ -135,7 +135,7 @@ def draw_spectrum_4_layers(wavelength, n_prism, n_glass, n_metal, n_enhance,
     for i in range(len(wavelength) - 10, 10, -1):
         if r_tm[i] < 0.6 and r_tm[i] < r_tm[i - 1] and r_tm[i] < r_tm[i + 1]:
             resonance_wavelength_temp = round(wavelength[i], 2)
-            print(angle_out, '° :', round(wavelength[i], 2), 'nm  ', round(r_tm[i], 2))
+            # print(angle_out, '° :', round(wavelength[i], 2), 'nm  ', round(r_tm[i], 2))
             break
     if draw_mode:
         plt.plot(wavelength, r_tm)
@@ -221,7 +221,7 @@ def read_excel(filepath, N):
     return x,npr,n1,n2,n_tio2,n4,d2
 
 
-#对给定的入射角度和共振波长，遍历孔隙率列表，计算出一串P-T数据对，绘制曲线
+# 对给定的入射角度和共振波长，遍历孔隙率列表，计算出一串P-T数据对，绘制曲线
 def calc_thickness(x, npr, n1, n2, n_tio2, n4,d2,N,
                    P_list, d_start, accurary, theta, wavelength):
     # 给定入射角，给定所要拟合寻找的共振波长
@@ -259,7 +259,7 @@ def calc_thickness(x, npr, n1, n2, n_tio2, n4,d2,N,
                 print('The best thickness when P=' + str(P) + " is: ", d3)
                 d3_list.append(round(d3,2))
                 if_find_flag = 1
-                temp=int(d3)#
+                temp = int(d3)#
                 print('-------temp: ', temp)
                 break
             if ans < wavelength0:
@@ -401,19 +401,72 @@ def calc_main(theta_list, wavelength_list, d_start, P_list, accuracy):
 # datas=read_excel('reference.xlsx',1)
 
 
-if __name__ == '__main__':
-    x = np.load("RI\\wavelength.npy")
-    d2 = 50
-    d3 = 150
-    npr = np.load("RI\\prism.npy")
-    n1 = np.load("RI\\glass.npy")
-    n2 = np.load("RI\\Au_n.npy") + 1j*np.load("RI\\Au_k.npy")
-    n3 = np.load("RI\\tio2.npy")
-    # n4 = np.load("RI\\air.npy")
-    # n4 = np.load("RI\\water.npy")
-    n4 = np.full(5001, 1.33)
-    theta = 10
-    # draw_spectrum(x, npr, n1, n2, n3, n4, d2, theta, d3)
-    # draw_spectrum_3_layers(x, npr, n1, n2, n4, theta, d2)
-    res = draw_spectrum_4_layers(x, npr, n1, n2, effective_n(0.3, n3, n4), n4, theta, d2, d3, draw_mode=True)
+def calculate_porosity_thickness_curve_intersection(wavelength, n_prism, n_glass, n_metal, n_enhance,
+                                                    angle_out, d_metal, d_start, p_start, p_end, n_detection_conditions,
+                                                    target_resonance_wavelength_conditions: tuple) -> tuple:
+    """
+    计算孔隙率-厚度曲线, 求出不同条件下的曲线交点
+    """
+    porosity_range = np.arange(p_start, p_end, 0.01)
+    accuracy = 0.1  # 仿真中由于波长分辨率为0.1nm, 因此accuracy≤0.1nm时效果都一样
+    # plt.ion()
+    # label = []
+    results = []
+    for i in range(len(n_detection_conditions)):
+        target_resonance_wavelength_condition = target_resonance_wavelength_conditions[i]
+        n_detection_condition = np.full(5001, n_detection_conditions[i])
+        # label.append("%.2f" % n_detection_conditions[i])
+        d_enhance = d_start
+        d_enhance_result = []
+        for porosity in porosity_range:
+            find_flag = False
+            effective_n3 = effective_n(porosity, n_enhance, n_detection_condition)
+            while True:
+                ans = draw_spectrum_4_layers(wavelength, n_prism, n_glass, n_metal, effective_n3,
+                                             n_detection_condition, angle_out, d_metal, d_enhance, draw_mode=False)
+                if abs(ans - target_resonance_wavelength_condition) <= accuracy:
+                    d_enhance_result.append(round(d_enhance, 2))
+                    break
+                elif ans < target_resonance_wavelength_condition:
+                    d_enhance += 10
+                else:
+                    d_max = d_enhance
+                    d_min = d_enhance - 10
+                    while True:
+                        d_enhance = round((d_max + d_min) / 2, 4)
+                        ans = draw_spectrum_4_layers(wavelength, n_prism, n_glass, n_metal, effective_n3,
+                                                     n_detection_condition, angle_out, d_metal, d_enhance,
+                                                     draw_mode=False)
+                        if abs(ans - target_resonance_wavelength_condition) <= accuracy:
+                            d_enhance_result.append(round(d_enhance, 2))
+                            find_flag = True
+                            break
+                        elif ans < target_resonance_wavelength_condition:
+                            d_min = d_enhance
+                        else:
+                            d_max = d_enhance
+                if find_flag:
+                    break
+        results.append(d_enhance_result)
+        # plt.plot(porosity_range, d_enhance_result)
+        # plt.legend(label)
+        # plt.pause(0.5)
+    my_max = 9999
+    my_min_index = 0
+    for i in range(len(results[0])):
+        if abs(results[0][i] - results[1][i]) < my_max:
+            my_min_index = i
+            my_max = abs(results[0][i] - results[1][i])
+    best_porosity = porosity_range[my_min_index]
+    best_thickness = round((results[0][my_min_index] + results[1][my_min_index])/2, 2)
 
+    # plt.scatter(porosity_range[my_min_index], best_thickness, c='red')
+    # plt.pause(0.5)
+    # plt.plot(porosity_range, np.array(results[0]) - np.array(results[1]))
+    # plt.axhline(0, xmin=0.1, xmax=0.9)
+    # label.append("Delta")
+    # plt.legend(label)
+    # plt.ioff()
+    # plt.show()
+
+    return best_porosity, best_thickness
