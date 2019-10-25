@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-def show_deep(x, y, fit_order=4, fit_range=25, section=None):
+def show_deep(x, y, fit_order=4, fit_range=25, section=None, manual_point=None):
     """
     Calculate the resonance wavelength of given data (x[], y[]),
     In case of hyper spectrum, array only contains 100-200 numbers(bands).
@@ -15,6 +15,7 @@ def show_deep(x, y, fit_order=4, fit_range=25, section=None):
     :param fit_order:  int
     :param fit_range:  int
     :param section: Tuple -- (r1, r2)
+    :param manual_point: int -- manually give an approximate point, so that we find deep after it.
     :return: (num0, num1, List2, List3)
     --------
     num0:    resonance wavelength after fitted
@@ -32,8 +33,10 @@ def show_deep(x, y, fit_order=4, fit_range=25, section=None):
 
     # Firstly, find a rough estimate of resonance wavelength(relative minimum value).
     # Secondly, if a rough estimate is found, take a section around it out for fitting.
+    # if manual_point:
+    #     section = (manual_point - 20, manual_point + 20)
     if not section:
-        temp = find_min(y1)
+        temp = find_min(x1, y1, manual_point)
         if not temp:
             return False
 
@@ -109,17 +112,24 @@ def mean_smooth(data_y):
     return temp
 
 
-def find_min(list_a):
+def find_min(list_x, list_y, start_from):
     """
     rough estimate of relative minimum value
+    start_from: find deep from value-start_from, it's wavelength, not index.
     """
-    for i in range(10, len(list_a) - 10):
-        if list_a[i - 1] < list_a[i] or list_a[i + 1] < list_a[i]:
+    sampling_interval = len(list_y) // 170
+    new_list_x = [list_x[i] for i in range(0, len(list_x), sampling_interval)]
+    new_list_y = [list_y[i] for i in range(0, len(list_y), sampling_interval)]
+    start_point = 10
+    while start_from and new_list_x[start_point] < start_from:
+        start_point += 1
+    for i in range(start_point, len(new_list_y)):
+        if new_list_y[i - 1] < new_list_y[i] or new_list_y[i + 1] < new_list_y[i]:
             pass
         else:
-            if list_a[i - 2] > list_a[i] and list_a[i + 2] > list_a[i]:
-                if list_a[i - 3] > list_a[i] and list_a[i + 3] > list_a[i]:
-                    return i, list_a[i]
+            if new_list_y[i - 2] > new_list_y[i] and new_list_y[i + 2] > new_list_y[i]:
+                if new_list_y[i - 3] > new_list_y[i] and new_list_y[i + 3] > new_list_y[i]:
+                    return i * sampling_interval, new_list_y[i]
 
 
 if __name__ == '__main__':

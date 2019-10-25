@@ -132,8 +132,8 @@ class CalculateThicknessDistributionThread(QThread):
         self.resonance_matrix_condition_1 = None
         self.resonance_matrix_condition_2 = None
         self.n = self.m = 0
-        self.porosity_result = None
-        self.thickness_result = None
+        self.porosity_result = np.zeros(0)
+        self.thickness_result = np.zeros(0)
 
     def set_parameters(self, wavelength, n_prism, n_glass, n_metal, n_enhance, theta, d_gold, d_enhance_start,
                        p_start, p_end, n4_conditions):
@@ -187,8 +187,8 @@ class CalculateThicknessDistributionThread(QThread):
                                                                           self.p_start, self.p_end, self.n4_conditions,
                                                                           target_resonance_conditions)
                     calculated_database[target_resonance_conditions] = res
-                self.porosity_result[i][j] = res[0]
-                self.thickness_result[i][j] = res[1]
+                self.porosity_result[i][j] = round(res[0], 2)
+                self.thickness_result[i][j] = round(res[1], 2)
                 # print("({i}, {j})=".format(i=i, j=j), target_resonance_conditions, res)
         t2 = time.time()
         print("Time used: ", t2-t1)
@@ -216,6 +216,8 @@ class CalculateThicknessDistributionDialog(QDialog, Distribution_Dialog):
         self.pushButton_2.clicked.connect(lambda: self.load_resonance_wavelength_data_matrix(1))
         self.pushButton_3.clicked.connect(lambda: self.load_resonance_wavelength_data_matrix(2))
         self.pushButton_4.clicked.connect(self.calculate_thickness_distribution)
+        self.pushButton_5.clicked.connect(lambda: self.save_result_data(True))
+        self.pushButton_6.clicked.connect(lambda: self.save_result_data(False))
 
     def open_sense_layer_setting(self):
         self.sense_model.show()
@@ -281,6 +283,20 @@ class CalculateThicknessDistributionDialog(QDialog, Distribution_Dialog):
         plt.imshow(thickness, cmap=plt.get_cmap('rainbow'))
         plt.colorbar()
         plt.show()
+
+    def save_result_data(self, flag):
+        if flag:
+            data_to_save = self.calc_thread.porosity_result
+        else:
+            data_to_save = self.calc_thread.thickness_result
+        if data_to_save.__len__() == 0:
+            QMessageBox.warning(self, "Warning", "No data to be saved!")
+        else:
+            filename = QFileDialog.getSaveFileName(self, 'Save File', '', "csv file(*.csv)", None,
+                                                   QFileDialog.DontUseNativeDialog)[0]
+            if filename:
+                np.savetxt(filename + ".csv", data_to_save, fmt="%.2f", delimiter=',')
+                # np.save(filename + ".npy", data_to_save)
 
 
 if __name__ == '__main__':
