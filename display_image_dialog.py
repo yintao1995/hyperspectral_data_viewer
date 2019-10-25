@@ -41,6 +41,7 @@ class CalculateThread(QThread):
         self.data = HyperSpectralData()
         self.fitting_order = 4
         self.fitting_range = 25
+        self.manual_point = None
         self.result = []
         self.average = 0
 
@@ -58,8 +59,12 @@ class CalculateThread(QThread):
             self.update_progress_signal.emit(present_progress)
             for x in range(self.x1, self.x2):
                 point_xy = self.data.get_point_xy_data(x, y)
-                temp_resonance_wavelength = show_deep(self.data.spectral_band, point_xy,
-                                                      fit_order=self.fitting_order, fit_range=self.fitting_range)[0]
+                if max(point_xy) < 10000:
+                    temp_resonance_wavelength = 0
+                else:
+                    temp_resonance_wavelength = show_deep(self.data.spectral_band, point_xy,
+                                                          fit_order=self.fitting_order, fit_range=self.fitting_range,
+                                                          manual_point=self.manual_point)[0]
                 temp.append(temp_resonance_wavelength)
             total_sum += sum(temp)
             self.result.append(temp)
@@ -71,7 +76,7 @@ class DisplayImageDialog(QDialog):
     """
     This is main GUI.
     """
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, filename=''):
         super(DisplayImageDialog, self).__init__(parent)
         self.setAttribute(Qt.WA_DeleteOnClose, True)
         self.setWindowTitle("Display Band Image")
@@ -99,6 +104,7 @@ class DisplayImageDialog(QDialog):
         self.save_img_btn.setMinimumHeight(min_height_for_buttons)
         self.convert_to_rgb_btn.setMinimumHeight(min_height_for_buttons)
         self.calc_thickness_btn.setMinimumHeight(min_height_for_buttons)
+        self.wavelength_distribution_btn.setMinimumHeight(min_height_for_buttons)
 
         # alignment of widgets
         self.btn_layout = QHBoxLayout()
@@ -115,7 +121,7 @@ class DisplayImageDialog(QDialog):
         self.main_layout.addWidget(self.image_nav_btn)
 
         # data
-        self.hs_data = HyperSpectralData()
+        self.hs_data = HyperSpectralData(filename)
         self.image_height = self.hs_data.lines
         self.image_width = self.hs_data.samples
         self.n_th = 0
@@ -164,13 +170,15 @@ class DisplayImageDialog(QDialog):
         self.fitting_order = fitting_order
         self.fitting_range = fitting_range
 
-    def load_file(self, file_name):
+    def load_file(self, file_name, reflectivity_calibration=False):
         """
         Load SEMR hyper spectral data.
         Data format should be .raw created by Dualix HS Camera.
         """
+        if self.hs_data.data_type == 4:     # 如果data type为4，说明是校准后的文件 float32格式读取
+            reflectivity_calibration = True
         self.hs_data.filename = file_name
-        self.hs_data.get_data_from_file()
+        self.hs_data.get_data_from_file(reflectivity_calibration)
         for i in self.hs_data.spectral_band:
             self.band_combo_box.addItem("{}nm".format("%.2f" % i))
         self.band_combo_box.setCurrentIndex(self.hs_data.bands//2)
@@ -212,9 +220,9 @@ class DisplayImageDialog(QDialog):
         """
         if self.hs_data.data.__len__() == 0:
             return
-        red_band = self.red
-        green_band = self.green
-        blue_band = self.blue
+        red_band = self.hs_data.r_band
+        green_band = self.hs_data.g_band
+        blue_band = self.hs_data.b_band
         band_r = self.hs_data.get_band_n_data(red_band)
         band_g = self.hs_data.get_band_n_data(green_band)
         band_b = self.hs_data.get_band_n_data(blue_band)
@@ -253,18 +261,22 @@ class DisplayImageDialog(QDialog):
             if self.spectrum_dialog.normalize_check_box.isChecked():
                 point_xy = [i / xy_max for i in point_xy]
                 xy_max = 1.0
-            painter.ax.plot(self.hs_data.spectral_band, point_xy)
-            # seek deep and fit.
-            result = show_deep(self.hs_data.spectral_band, point_xy, fit_order=self.fitting_order,
-                               fit_range=self.fitting_range)
-            painter.ax.plot([result[0], result[0]], [0, xy_max], alpha=0.4)
-            if not result[0]:
-                painter.ax.text(result[0], 0, "Not Found", alpha=0.6)
-            else:
-                painter.ax.text(result[0], 0, str(result[0]) + 'nm', alpha=0.6)
-                if self.spectrum_dialog.fit_check_box.isChecked():
-                    painter.ax.scatter(self.hs_data.spectral_band, point_xy, s=5)
-                    painter.ax.plot(result[2], result[3], c='red')
+            painter.ax.plot(self.hs_data.spectral_band, point_xy)     # todo :90
+            if self.spectrum_dialog.show_deep_check_box.isChecked():
+                # seek deep and fit.
+                manual_point = None
+                if self.spectrum_dialog.manual_calibration_check_box.isChecked():
+                    manual_point = self.spectrum_dialog.spin_box.value()
+                result = show_deep(self.hs_data.spectral_band, point_xy, fit_order=self.fitting_order,
+                                   fit_range=self.fitting_range, manual_point=manual_point)
+                painter.ax.plot([result[0], result[0]], [0, xy_max], alpha=0.4)
+                if not result[0]:
+                    painter.ax.text(result[0], 0, "Not Found", alpha=0.6)
+                else:
+                    painter.ax.text(result[0], 0, str(result[0]) + 'nm', alpha=0.6)
+                    if self.spectrum_dialog.fit_check_box.isChecked():
+                        painter.ax.scatter(self.hs_data.spectral_band, point_xy, s=5)
+                        painter.ax.plot(result[2], result[3], c='red')
             painter.ax.set_xlabel("wavelength/(nm)")
             painter.fig.suptitle('spectrum of the point({x},{y})'.format(x=x, y=y))
             painter.draw()
@@ -298,6 +310,8 @@ class DisplayImageDialog(QDialog):
             self.calc_distribution_thread.data = self.hs_data
             self.calc_distribution_thread.fitting_order = self.fitting_order
             self.calc_distribution_thread.fitting_range = self.fitting_range
+            if self.spectrum_dialog.manual_calibration_check_box.isChecked():
+                self.calc_distribution_thread.manual_point = self.spectrum_dialog.spin_box.value()
             self.calc_distribution_thread.start()
             self.distribution_dialog.progress_bar.setRange(0, h1)
         else:
@@ -337,7 +351,8 @@ class DisplayImageDialog(QDialog):
         if data:
             filename = QFileDialog.getSaveFileName(self, 'Save File', '', "npy(*.npy)",
                                                 None, QFileDialog.DontUseNativeDialog)[0]
-            np.save(filename+".npy", np.array(data))
+            if filename:
+                np.save(filename+".npy", np.array(data))
         else:
             QMessageBox.warning(self.distribution_dialog, "Warning", "No data to be saved.")
 

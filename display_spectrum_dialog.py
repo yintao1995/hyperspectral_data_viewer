@@ -33,13 +33,21 @@ class DisplaySpectrumDialog(QDialog):
         # widgets: canvas, buttons, check box, navigation bar...
         self.spectrum_canvas = MyCanvas()
         self.spectrum_nav_btn = NavigationToolbar(self.spectrum_canvas, parent=None)
+        self.show_deep_check_box = QCheckBox("Show Deep")
         self.fit_check_box = QCheckBox("Display Fit")
         self.normalize_check_box = QCheckBox("Normalize")
+        self.manual_calibration_check_box = QCheckBox("Manual Cali")
+        self.spin_box = QSpinBox()
+        self.spin_box.setRange(400, 900)
+        self.spin_box.setDisabled(True)
 
         # alignment of widgets
         self.btn_layout = QHBoxLayout()
+        self.btn_layout.addWidget(self.show_deep_check_box)
         self.btn_layout.addWidget(self.fit_check_box)
         self.btn_layout.addWidget(self.normalize_check_box)
+        self.btn_layout.addWidget(self.manual_calibration_check_box)
+        self.btn_layout.addWidget(self.spin_box)
         self.btn_layout.addStretch()
         self.main_layout = QVBoxLayout(self)
         self.main_layout.addWidget(self.spectrum_canvas)
@@ -48,6 +56,13 @@ class DisplaySpectrumDialog(QDialog):
 
         # signals and slots
         # noinspection PyUnresolvedReferences
+        self.manual_calibration_check_box.stateChanged.connect(self.manual_cali_check_or_not)
+
+    def manual_cali_check_or_not(self):
+        if self.manual_calibration_check_box.checkState() == 2:
+            self.spin_box.setDisabled(False)
+        else:
+            self.spin_box.setDisabled(True)
 
 
 if __name__ == '__main__':

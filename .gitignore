@@ -5,7 +5,7 @@ build
 dist
 DualixData
 ERI
-RI
+test
 
 # files
 test.py
@@ -18,7 +18,5 @@ test006.py
 reference.xlsx
 
 *.json
-*.npy
 *.spec
 *.pyw
-*.npy

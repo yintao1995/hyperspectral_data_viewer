@@ -13,12 +13,15 @@ class HyperSpectralData(object):
     def __init__(self, file_name=''):
         self.filename = file_name
         self.header = 0
-        self.bytes_per_data = 2
+        self.data_type = 12     # 12: 小端,uint16；    4: 小端,float32
         self.samples = 960      # 图片的高
         self.lines = 1101        # 图片的宽
-        self.bands = 176  # 波段数
+        self.bands = 1456  # 波段数
         self.length = 0  # 总的图像数据的长度
         self.data = np.zeros(0)   # 二维数组
+        self.r_band = 0
+        self.g_band = 0
+        self.b_band = 0
         # self.calibration_filename = ''
         # self.integral_time = 0
         self.spectral_band = [
@@ -34,14 +37,45 @@ class HyperSpectralData(object):
             853.2, 856.8, 860.5, 864.1, 867.7, 871.4, 875.0, 878.7, 882.3, 886.0, 889.6, 893.3, 896.9, 900.6, 904.3,
             907.9, 911.6, 915.3, 918.9, 922.6, 926.3, 930.0, 933.7, 937.4, 941.1, 944.8, 948.5, 952.2, 955.9, 959.6,
             963.3, 967.0, 970.7, 974.5, 978.2, 981.9, 985.7, 989.4, 993.1, 996.9, 1000.6]
+        self.get_info_from_hdr_dci_file()
 
-    def get_data_from_file(self):
-        """get all data from file and store it as a 2-d array
+    def get_info_from_hdr_dci_file(self):
+        """
+        while init, read info from hdr files.
+        """
+        if not self.filename:
+            return
+        hdr_filename = self.filename[:-4] + '.hdr'
+        dci_filename = self.filename[:-4] + '.dci'
+        try:
+            with open(hdr_filename, 'r') as f:
+                info_list = f.readlines()
+                self.data_type = int(info_list[6].split('=')[1])
+                self.samples = int(info_list[1].split('=')[1])
+                self.lines = int(info_list[2].split('=')[1])
+                self.bands = int(info_list[3].split('=')[1])
+
+                self.spectral_band = [float(i[:-2]) for i in info_list[12:-1]]
+            with open(dci_filename, 'r') as f:
+                info_list = f.readlines()
+                self.r_band = int(info_list[2][4:].strip())
+                self.g_band = int(info_list[4][6:].strip())
+                self.b_band = int(info_list[6][5:].strip())
+        except:
+            print('Errors encountered')
+
+    def get_data_from_file(self, reflectivity_calibration=False):
+        """get all data from file and store it as a 2-d array.
+        reflectivity_calibration: if data is been reflectivity calibrated, size becomes 2x. data type is '<f4', float32
 
         :return : numpy array
         """
-        self.data = np.reshape(np.fromfile(self.filename, dtype='<u2'), (self.lines * self.bands, self.samples),
-                               order='C')    # '<'表示小端字节序  'u2'表示16位无符号整数
+        if reflectivity_calibration:
+            self.data = np.reshape(np.fromfile(self.filename, dtype='<f4'), (self.lines * self.bands, self.samples),
+                                   order='C')  # '<'表示小端字节序  'f4'表示32位浮点数
+        else:
+            self.data = np.reshape(np.fromfile(self.filename, dtype='<u2'), (self.lines * self.bands, self.samples),
+                                   order='C')    # '<'表示小端字节序  'u2'表示16位无符号整数
 
     def get_band_n_data(self, n):
         """Get data of the n-th band ,on the condition of having read all data to memory
@@ -71,3 +105,16 @@ class HyperSpectralData(object):
         for sub_flow in temp_data:
             point_xy_data.append(sub_flow[x])
         return point_xy_data
+
+
+if __name__ == '__main__':
+    filename = "D:\\0-学习!学习!学习!学习!\\电子所里的研二研三\\高光谱相关\\测试数据\\20191023\\data\\20191023-pmma-7-max-max.raw"
+    hsd = HyperSpectralData(filename)
+    hsd.get_info_from_hdr_dci_file()
+    print(hsd.samples)
+    print(hsd.lines)
+    print(hsd.bands)
+    print(hsd.spectral_band)
+    hsd.get_data_from_file()
+    print(hsd.get_point_xy_data(100, 100))
+

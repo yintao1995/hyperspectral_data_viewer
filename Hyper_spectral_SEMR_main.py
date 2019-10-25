@@ -127,12 +127,12 @@ class MyWindow(QMainWindow):
         # parameters
         self.samples = 960
         self.lines = 1101
-        self.bands = 176
+        self.bands = 176       #todo
         self.fitting_order = 4
         self.fitting_range = 25
-        self.red = 74
-        self.green = 50
-        self.blue = 21
+        self.red = 76   # 641
+        self.green = 50   # 392
+        self.blue = 21    # 158
 
         # signals and slots
         self.action_exit.triggered.connect(self.close)
@@ -185,12 +185,19 @@ class MyWindow(QMainWindow):
         Choose and load a *.raw hyper spectral data.
         Can open multi-windows at the same time.
         """
-        file_name = QFileDialog.getOpenFileName(self, 'Choose Files', '', "Raw(*.raw)",
+        try:
+            with open('file_path.log', 'r') as f:
+                file_path = f.read()
+        except:
+            file_path = ''
+        file_name = QFileDialog.getOpenFileName(self, 'Choose Files', file_path, "Raw(*.raw)",
                                                 None, QFileDialog.DontUseNativeDialog)[0]
         if not file_name:
             return
+        with open('file_path.log', 'w') as f:
+            f.write(file_name)
         # Every time new a new DisplayImageDialog object so that multi-windows are supported.
-        self.image_dialog = DisplayImageDialog(self)
+        self.image_dialog = DisplayImageDialog(self, file_name)     # 传递文件参数, 后面会根据文件名读取对应hdr文件信息
         # Parameters about fitting should be more real-time.
         self.fitting_para_dialog.fitting_paras_signal.connect(self.image_dialog.set_fitting_paras)
         self.image_dialog.hs_data.samples = self.samples
@@ -201,6 +208,7 @@ class MyWindow(QMainWindow):
         self.image_dialog.red = self.red
         self.image_dialog.green = self.green
         self.image_dialog.blue = self.blue
+        self.image_dialog.hs_data.get_info_from_hdr_dci_file()   # 覆盖参数
         self.image_dialog.load_file(file_name)
         self.image_dialog.setWindowTitle(file_name.split('/')[-1])
         self.image_dialog.show()
